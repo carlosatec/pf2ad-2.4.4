@@ -337,10 +337,7 @@ function squid_write_rcfile() {
 	$rc['file'] = 'squid.sh';
 	$rc['start'] = <<< EOD
 #/sbin/sysctl net.inet.ip.portrange.reservedhigh=0
-SQUID_ENABLED=$(/usr/local/sbin/read_xml_tag.sh string installedpackages/squid/config/enable_squid)
-if [ "\${SQUID_ENABLED}" != "on" ]; then
-	exit 0
-elif [ -z "`/bin/ps auxw | /usr/bin/grep "[s]quid " | /usr/bin/awk '{print $2}'`" ]; then
+if [ -z "`/bin/ps auxw | /usr/bin/grep "[s]quid " | /usr/bin/awk '{print $2}'`" ]; then
 	{$squid_base}/sbin/squid -f {$squid_conffile_var}
 fi
 
@@ -711,7 +708,7 @@ function squid_upgrade_config() {
 
 	/* migrate reverse proxy settings */
 	squid_reverse_upgrade_config();
-
+	
 	/* unset broken antivirus settings */
 	squid_antivirus_upgrade_config();
 
@@ -789,7 +786,7 @@ function squid_validate_general($post, &$input_errors) {
 		$input_errors[] = "You can not run Squid on the same port as the pfSense WebGUI";
 	}
 	unset($port, $webgui_port);
-
+	
 	if ($post['transparent_proxy'] == 'on') {
 		if (empty($post['transparent_active_interface'])) {
 			$input_errors[] = "You must select at least one interface under 'Transparent Proxy Interface(s)' when 'Transparent HTTP Proxy' is enabled.";
@@ -846,7 +843,7 @@ function squid_validate_general($post, &$input_errors) {
 		}
 	}
 	unset($host, $hosts);
-
+	
 	foreach (array('defined_ip_proxy_off_dest') as $hosts) {
 		foreach (explode(";", $post[$hosts]) as $host) {
 			$host = trim($host);
@@ -943,7 +940,7 @@ function squid_validate_cache($post, &$input_errors) {
 	}
 
 	if ($post['donotcache'] != "") {
-		foreach (explode("\n", $post['donotcache']) as $host) {
+		foreach (split("\n", $post['donotcache']) as $host) {
 			$host = trim($host);
 			// Allow matching all subdomains, like .example.com
 			if (strpos($host, '.') === 0) {
@@ -1294,18 +1291,9 @@ function squid_resync_general() {
 	 * This avoids periods when Squid is unresponsive due to digest generation.
 	 */
 	$digest_generation = "off";
-	if (!is_array($config['installedpackages'])) {
-		$config['installedpackages'] = array();
-	}
-
-	if (!is_array($config['installedpackages']['squidremote'])) {
-		$config['installedpackages']['squidremote'] = array();
-	}
-
 	if (!is_array($config['installedpackages']['squidremote']['config'])) {
 		$config['installedpackages']['squidremote']['config'] = array();
 	}
-
 	foreach ($config['installedpackages']['squidremote']['config'] as $settings) {
 		if ($settings['enable'] == 'on' && $settings['hierarchy'] == 'sibling') {
 			$digest_generation = "on";
@@ -1494,14 +1482,6 @@ EOD;
 function squid_resync_upstream() {
 	global $config;
 
-	if (!is_array($config['installedpackages'])) {
-		$config['installedpackages'] = array();
-	}
-
-	if (!is_array($config['installedpackages']['squidremote'])) {
-		$config['installedpackages']['squidremote'] = array();
-	}
-
 	if (!is_array($config['installedpackages']['squidremote']['config'])) {
 		$config['installedpackages']['squidremote']['config'] = array();
 	}
@@ -1603,7 +1583,7 @@ acl step3 at_step SslBump3
 
 EOD;
 	}
-
+	
 	$allowed_subnets = preg_replace("/\s+/"," ", sq_text_area_decode($settings['allowed_subnets']));
 	if (!empty($allowed_subnets)) {
 		$conf .= "acl allowed_subnets src $allowed_subnets\n";
@@ -1772,7 +1752,6 @@ function squid_resync_auth() {
 	global $config, $valid_acls;
 	$write_config = 0;
 	if (!is_array($config['installedpackages']['squidauth']['config'])) {
-		init_config_arr(array('installedpackages', 'squidauth', 'config'));
 		$config['installedpackages']['squidauth']['config'][] = array('auth_method' => "none");
 		$write_config++;
 	}
@@ -1938,7 +1917,7 @@ function squid_resync_auth() {
 					$conf .= "auth_param negotiate program ". SQUID_LOCALBASE . "/libexec/squid/negotiate_wrapper_auth --ntlm ". SQUID_LOCALBASE ."/libexec/squid/ntlm_auth ". $domain_samba4 ."--helper-protocol=squid-2.5-ntlmssp --kerberos ". SQUID_LOCALBASE ."/libexec/squid/negotiate_kerberos_auth -s GSS_C_NO_NAME\n";
 					$conf .= "auth_param negotiate children {$ntlm_proc}\n";
 					$conf .= "auth_param negotiate keep_alive off\n";
-					$conf .= "# Pure NTLM\n";
+					$conf .= "# Pure NTLM\n";	
 					$conf .= "auth_param ntlm program ". SQUID_LOCALBASE . "/libexec/squid/ntlm_auth " . $domain_samba4 . "--helper-protocol=squid-2.5-ntlmssp\n";
 					$conf .= "auth_param ntlm children {$ntlm_proc}\n";
 					$conf .= "auth_param ntlm keep_alive off\n";
@@ -2462,11 +2441,9 @@ function squid_do_xmlrpc_sync($sync_to_ip, $port, $protocol, $username, $passwor
 function squid_list_ssl_ca() {
 	global $config;
 	$prvca_list = array();
-	if (isset($config['ca']) && is_array($config['ca'])) {
-		foreach ($config['ca'] as $ca) {
-			if (!empty($ca['prv'])) {
-				$prvca_list[] = $ca;
-			}
+	foreach ($config['ca'] as $ca) {
+		if (!empty($ca['prv'])) {
+			$prvca_list[] = $ca;
 		}
 	}
 	return $prvca_list;
